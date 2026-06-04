@@ -159,6 +159,14 @@
   .stat .sl{font-size:8px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;margin-top:7px}
   @media(max-width:480px){.statgrid{grid-template-columns:repeat(2,1fr)}}
 
+  /* walk-to-burn */
+  .walk{display:flex;align-items:center;gap:14px}
+  .wfig{flex:0 0 auto;display:flex;align-items:baseline;gap:3px;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+  .wkm{font-family:'Fraunces',serif;font-weight:900;font-size:30px;line-height:1;color:var(--acid)}
+  .wkmu{font-size:11px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+  .wtxt{font-size:12px;line-height:1.45;color:var(--ink);opacity:.85;letter-spacing:.2px}
+  .wtxt b{color:var(--acid);opacity:1}
+
   /* oils */
   .oil{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
   .oil:last-of-type{border-bottom:none}
@@ -254,7 +262,7 @@ const FIELDS = [
   "nutriments","nutrient_levels","additives_tags","additives_n",
   "allergens_tags","ingredients_text","ingredients_n","categories",
   "labels_tags","packaging","completeness","countries",
-  "categories_tags","serving_size","nutriscore_score","ingredients_analysis_tags"
+  "categories_tags","serving_size","serving_quantity","nutriscore_score","ingredients_analysis_tags"
 ].join(",");
 
 const $ = id => document.getElementById(id);
@@ -290,6 +298,19 @@ function scoreColor(s){
   return getComputedStyle(document.documentElement).getPropertyValue('--red').trim();
 }
 function rank(g){ return {a:1,b:2,c:3,d:4,e:5}[g] || 9; }
+
+// Serving size in grams/ml, parsed from OFF's serving_quantity or the serving_size text.
+function servingGrams(p){
+  if(p.serving_quantity!=null && p.serving_quantity!=='' && !isNaN(+p.serving_quantity)) return +p.serving_quantity;
+  const m=(p.serving_size||'').match(/([\d]+(?:[.,][\d]+)?)\s*(g|ml)\b/i);
+  if(m) return parseFloat(m[1].replace(',','.'));
+  return null;
+}
+
+// Walking distance (km) to burn a given kcal. Transparent anchor: a ~70 kg adult
+// at a brisk ~5 km/h (~3.5 MET) burns roughly 50 kcal per km.
+const KCAL_PER_KM = 50;
+function walkKm(kcal){ return kcal!=null ? kcal / KCAL_PER_KM : null; }
 
 // Oils & fats detector — evidence-honest tiers, not hype.
 const OILS=[
@@ -394,6 +415,23 @@ function render(p, code){
   const score = healthScore(p);
   const img = p.image_front_small_url || p.image_front_url || '';
 
+  // ---- basis: prefer per serving, fall back to per 100g
+  const sg = servingGrams(p); // serving size in g/ml, or null
+  const perServing = !!p.serving_size && (N['energy-kcal_serving']!=null || sg!=null);
+  // amount(key): nutriment value on the chosen basis, or null if unavailable.
+  const amount = key=>{
+    if(perServing){
+      const sv=N[key+'_serving'];
+      if(sv!=null && sv!=='') return +sv;
+      if(sg!=null && N[key+'_100g']!=null && N[key+'_100g']!=='') return N[key+'_100g']*sg/100;
+      return null;
+    }
+    const v=N[key+'_100g'];
+    return (v!=null && v!=='') ? +v : null;
+  };
+  const basisHdr   = perServing ? 'per serving' : 'per 100g/ml';
+  const basisShort = perServing ? 'serving'     : '100 g';
+
   // ---- identity
   let html = `<div class="card reveal" style="animation-delay:0s">
     <div class="card-b ident">
@@ -445,19 +483,19 @@ function render(p, code){
     setTimeout(()=>{ const f=$('ringfg'); if(f) f.style.strokeDashoffset=off; },80);
   }
 
-  // ---- nutriments per 100g
+  // ---- nutriments (per serving where available, else per 100g)
   const rows=[
-    ['Energy', N['energy-kcal_100g'], 'kcal', 530, null],
-    ['Fat', N.fat_100g, 'g', 50, lv.fat],
-    ['  saturated', N['saturated-fat_100g'], 'g', 20, lv['saturated-fat']],
-    ['Sugars', N.sugars_100g, 'g', 50, lv.sugars],
-    ['Salt', N.salt_100g, 'g', 3, lv.salt],
-    ['Protein', N.proteins_100g, 'g', 30, null],
-    ['Fibre', N.fiber_100g, 'g', 12, null],
-  ].filter(r=>r[1]!=null && r[1]!=='');
+    ['Energy', 'energy-kcal', 'kcal', 530, null],
+    ['Fat', 'fat', 'g', 50, lv.fat],
+    ['  saturated', 'saturated-fat', 'g', 20, lv['saturated-fat']],
+    ['Sugars', 'sugars', 'g', 50, lv.sugars],
+    ['Salt', 'salt', 'g', 3, lv.salt],
+    ['Protein', 'proteins', 'g', 30, null],
+    ['Fibre', 'fiber', 'g', 12, null],
+  ].map(r=>[r[0], amount(r[1]), r[2], r[3], r[4]]).filter(r=>r[1]!=null);
   if(rows.length){
     html += `<div class="card reveal" style="animation-delay:.18s">
-      <div class="card-h"><span>nutriments · per 100${(N['energy-kcal_100g']!=null||true)?'g/ml':''}</span><span>${rows.length} fields</span></div>
+      <div class="card-h"><span>nutriments · ${basisHdr}</span><span>${rows.length} fields</span></div>
       <div class="card-b nut">${rows.map((r,i)=>{
         const pct=Math.min(100,(r[1]/r[3])*100);
         const lvl=r[4]?`lvl-${r[4]}`:'';
@@ -469,15 +507,22 @@ function render(p, code){
       }).join('')}</div></div>`;
   }
 
-  // ---- derived metrics
-  const kj = N['energy-kj_100g'] ?? (N['energy-kcal_100g']!=null ? Math.round(N['energy-kcal_100g']*4.184) : null);
-  const sodiumMg = N.sodium_100g!=null ? Math.round(N.sodium_100g*1000) : (N.salt_100g!=null ? Math.round(N.salt_100g/2.5*1000) : null);
-  const sugarTsp = N.sugars_100g!=null ? +(N.sugars_100g/4).toFixed(1) : null;
+  // ---- derived metrics (same basis as above)
+  const kcal = amount('energy-kcal');
+  const kjRaw = amount('energy-kj');
+  const kj = kjRaw!=null ? Math.round(kjRaw) : (kcal!=null ? Math.round(kcal*4.184) : null);
+  const sodium = amount('sodium'), salt = amount('salt');
+  const sodiumMg = sodium!=null ? Math.round(sodium*1000) : (salt!=null ? Math.round(salt/2.5*1000) : null);
+  const sugars = amount('sugars');
+  const sugarTsp = sugars!=null ? +(sugars/4).toFixed(1) : null;
   const fvn = N['fruits-vegetables-nuts-estimate-from-ingredients_100g'] ?? N['fruits-vegetables-nuts_100g'] ?? null;
-  const satPct = (N.fat_100g>0 && N['saturated-fat_100g']!=null) ? Math.round(N['saturated-fat_100g']/N.fat_100g*100) : null;
+  const fat = amount('fat'), sat = amount('saturated-fat');
+  const satPct = (fat>0 && sat!=null) ? Math.round(sat/fat*100) : null;
+  const km = walkKm(kcal); // walking distance to burn the energy on this basis
   const tiles=[
     ['Energy', kj, 'kJ'],
-    ['Carbs', N.carbohydrates_100g!=null?+(+N.carbohydrates_100g).toFixed(1):null, 'g'],
+    ['Walk to burn', km!=null?+km.toFixed(1):null, 'km'],
+    ['Carbs', (a=>a!=null?+a.toFixed(1):null)(amount('carbohydrates')), 'g'],
     ['Sodium', sodiumMg, 'mg'],
     ['Sugar ≈', sugarTsp, 'tsp'],
     ['Fruit/Veg/Nut', fvn!=null?Math.round(fvn):null, '%'],
@@ -487,9 +532,16 @@ function render(p, code){
   ].filter(t=>t[1]!=null && t[1]!=='');
   if(tiles.length){
     html += `<div class="card reveal" style="animation-delay:.15s">
-      <div class="card-h"><span>derived metrics · per 100g</span><span>${tiles.length} stats</span></div>
+      <div class="card-h"><span>derived metrics · ${basisHdr}</span><span>${tiles.length} stats</span></div>
       <div class="statgrid">${tiles.map(t=>`<div class="stat"><div class="sv">${t[1]}<span class="su"> ${t[2]}</span></div><div class="sl">${esc(t[0])}</div></div>`).join('')}</div>
-      ${p.serving_size?`<div class="card-b" style="border-top:1px solid var(--line)"><div class="pmeta">SERVING SIZE · ${esc(p.serving_size)}${sugarTsp!=null?` &nbsp;|&nbsp; sugar ≈ ${sugarTsp} tsp per 100g`:''}</div></div>`:''}
+      ${km!=null?`<div class="card-b" style="border-top:1px solid var(--line)">
+        <div class="walk">
+          <span class="wfig"><span class="wkm">${km.toFixed(1)}</span><span class="wkmu">km</span></span>
+          <span class="wtxt">brisk walk to burn the <b>${Math.round(kcal)} kcal</b> in this ${basisShort}</span>
+        </div>
+        <div class="disc" style="border-top:none;padding-top:8px">Anchored to a 70&nbsp;kg adult walking ~5&nbsp;km/h (~50&nbsp;kcal/km). Lighter or slower → a little further; heavier or faster → a little less. A rough guide, not a prescription.</div>
+      </div>`:''}
+      ${p.serving_size?`<div class="card-b" style="border-top:1px solid var(--line)"><div class="pmeta">SERVING SIZE · ${esc(p.serving_size)}${sugarTsp!=null?` &nbsp;|&nbsp; sugar ≈ ${sugarTsp} tsp per ${basisShort}`:''}</div></div>`:''}
     </div>`;
   }
 
