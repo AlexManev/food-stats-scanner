@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FOODSCAN // diagnostic readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#EFE6D8;
+    --panel:#FBF7F0;
+    --panel2:#F1E8DA;
+    --line:#E2D6C3;
+    --ink:#3A2E26;
+    --dim:#9A8975;
+    --acid:#C2613F;
+    --amber:#C98A2B;
+    --red:#BC4A35;
+    --cyan:#4E8378;
+    --grade-a:#1E8F4E;--grade-b:#6FB23F;--grade-c:#E0AE2E;--grade-d:#DC8A2E;--grade-e:#CD4A38;
+    --shadow:0 1px 2px rgba(58,46,38,.05),0 6px 20px rgba(58,46,38,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  body{
+    min-height:100vh;
+    background-image:
+      linear-gradient(rgba(194,97,63,.035) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(194,97,63,.035) 1px,transparent 1px),
+      radial-gradient(circle at 50% -8%, rgba(194,97,63,.10), transparent 60%);
+    background-size:34px 34px,34px 34px,100% 100%;
+    padding:18px 14px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto}
+
+  /* header */
+  header{
+    border:1px solid var(--line);background:var(--panel);
+    padding:16px 18px;display:flex;align-items:center;justify-content:space-between;
+    position:relative;overflow:hidden;border-radius:14px 14px 0 0;box-shadow:var(--shadow);
+  }
+  header::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--acid)}
+  .logo{font-family:'Fraunces',serif;font-weight:900;font-size:27px;letter-spacing:-.5px;line-height:1}
+  .logo b{color:var(--acid)}
+  .tag{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-top:4px}
+  .status{font-size:10px;color:var(--dim);text-align:right;letter-spacing:1px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--grade-a);margin-left:6px;animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* input deck */
+  .deck{border:1px solid var(--line);border-top:none;background:var(--panel);padding:16px 18px;border-radius:0 0 14px 14px;box-shadow:var(--shadow)}
+  .row{display:flex;gap:8px}
+  input[type=text]{
+    flex:1;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    font-family:inherit;font-size:15px;padding:12px 14px;letter-spacing:.3px;outline:none;border-radius:9px;
+  }
+  input[type=text]:focus{border-color:var(--acid);box-shadow:0 0 0 2px rgba(194,97,63,.2)}
+  input::placeholder{color:var(--dim)}
+  button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    font-size:12px;letter-spacing:.5px;padding:12px 14px;text-transform:uppercase;transition:.12s;font-weight:600;border-radius:9px}
+  button:hover{border-color:var(--acid);color:var(--acid)}
+  button:active{transform:translateY(1px)}
+  .btn-go{background:var(--acid);color:#FBF7F0;border-color:var(--acid);font-weight:700}
+  .btn-go:hover{color:#FBF7F0;filter:brightness(1.06)}
+  .btn-cam{flex:0 0 auto}
+  .demos{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .demos span{font-size:9px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-right:2px}
+  .chip{font-size:10px;padding:7px 11px;border:1px dashed var(--line);background:transparent;color:var(--dim);border-radius:20px}
+  .chip:hover{border-style:solid;border-color:var(--acid);color:var(--acid)}
+
+  /* camera */
+  #camwrap{display:none;border:1px solid var(--acid);border-top:none;background:#1a1410;position:relative;border-radius:0 0 12px 12px;overflow:hidden}
+  #reader{width:100%}
+  #reader video{display:block;width:100%!important;height:auto!important}
+  .scanline{position:absolute;left:0;right:0;top:0;height:2px;background:var(--acid);box-shadow:0 0 10px var(--acid);animation:scan 2.4s linear infinite;pointer-events:none;z-index:5}
+  @keyframes scan{0%{top:8%}50%{top:92%}100%{top:8%}}
+  .camclose{position:absolute;top:8px;right:8px;z-index:6;background:rgba(26,20,16,.7);color:#FBF7F0;border-color:rgba(255,255,255,.25);font-size:10px;padding:6px 9px}
+
+  /* feedback */
+  .feed{min-height:20px;margin-top:12px;font-size:11px;letter-spacing:.5px;color:var(--dim)}
+  .feed.err{color:var(--red)}
+  .feed.ok{color:var(--grade-a)}
+  .loader{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--acid);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* result */
+  #out{margin-top:14px;display:none}
+  .reveal{animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .card{border:1px solid var(--line);background:var(--panel);margin-bottom:12px;border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .card-h{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel2);display:flex;justify-content:space-between}
+  .card-b{padding:16px}
+
+  /* identity */
+  .ident{display:flex;gap:14px;align-items:flex-start}
+  .pic{flex:0 0 78px;width:78px;height:78px;border:1px solid var(--line);background:var(--panel2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:9px;border-radius:10px}
+  .pname{font-family:'Fraunces',serif;font-weight:700;font-size:23px;line-height:1.08;letter-spacing:-.3px}
+  .pbrand{font-size:11px;color:var(--acid);letter-spacing:1px;margin-top:5px;text-transform:uppercase}
+  .pmeta{font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:.3px}
+
+  /* score strip */
+  .grades{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .gbox{border:1px solid var(--line);background:var(--panel);padding:12px;text-align:center;position:relative;border-radius:12px;box-shadow:var(--shadow)}
+  .gbox .lbl{font-size:8px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase}
+  .gbadge{font-family:'Fraunces',serif;font-weight:900;font-size:34px;line-height:1;margin-top:8px;display:inline-block;min-width:48px;padding:6px 4px;border-radius:8px;color:#FBF7F0}
+  .gsub{font-size:9px;color:var(--dim);margin-top:8px;letter-spacing:.3px;line-height:1.3}
+  .nova{display:flex;justify-content:center;gap:4px;margin-top:8px}
+  .nova i{width:10px;height:22px;background:var(--line);display:block;border-radius:2px}
+  .nova i.on{background:var(--amber)}
+  .nova i.on.hi{background:var(--red)}
+
+  /* health ring */
+  .ringwrap{display:flex;align-items:center;gap:18px}
+  .ring{flex:0 0 120px;position:relative;width:120px;height:120px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .num{font-family:'Fraunces',serif;font-weight:900;font-size:38px;line-height:1}
+  .ring .den{font-size:9px;color:var(--dim);letter-spacing:1px}
+  .ringtxt{flex:1;font-size:11px;color:var(--dim);line-height:1.5;letter-spacing:.3px}
+  .ringtxt b{color:var(--ink)}
+
+  /* nutriment bars */
+  .nut{display:flex;flex-direction:column;gap:9px}
+  .nrow{display:grid;grid-template-columns:96px 1fr 64px;gap:10px;align-items:center;font-size:11px}
+  .nrow .nm{color:var(--dim);letter-spacing:.5px;text-transform:uppercase;font-size:9px}
+  .bar{height:8px;background:var(--bg);border:1px solid var(--line);position:relative;overflow:hidden;border-radius:5px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--acid);transition:width 1s cubic-bezier(.2,.7,.2,1)}
+  .nval{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .lvl-low{--c:var(--grade-b)}.lvl-moderate{--c:var(--amber)}.lvl-high{--c:var(--red)}
+  .nrow[data-lvl] .bar i{background:var(--c,var(--acid))}
+
+  /* tag lists */
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .t{font-size:10px;padding:5px 10px;border:1px solid var(--line);background:var(--panel2);letter-spacing:.3px;border-radius:6px}
+  .t.warn{border-color:var(--amber);color:var(--amber)}
+  .t.bad{border-color:var(--red);color:var(--red)}
+  .t.good{border-color:var(--grade-b);color:var(--grade-b)}
+  .ingtext{font-size:12px;line-height:1.65;color:var(--ink);opacity:.8;letter-spacing:.1px}
+  .none{font-size:10px;color:var(--dim);letter-spacing:.5px}
+
+  /* completeness */
+  .compbar{height:6px;background:var(--bg);border:1px solid var(--line);position:relative;overflow:hidden;margin-top:6px;border-radius:4px}
+  .compbar i{position:absolute;left:0;top:0;bottom:0;background:var(--cyan);width:0;transition:width 1.1s ease}
+  .disc{font-size:9.5px;color:var(--dim);line-height:1.55;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;letter-spacing:.1px}
+  .disc b{color:var(--acid)}
+
+  footer{margin-top:18px;text-align:center;font-size:9px;color:var(--dim);letter-spacing:1px;line-height:1.6}
+  footer a{color:var(--acid);text-decoration:none}
+
+  /* derived metric tiles */
+  .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+  .stat{background:var(--panel);padding:14px 8px;text-align:center}
+  .stat .sv{font-family:'Fraunces',serif;font-weight:700;font-size:23px;line-height:1;color:var(--ink)}
+  .stat .su{font-size:9px;color:var(--dim);font-family:'Hanken Grotesk',sans-serif;font-weight:500}
+  .stat .sl{font-size:8px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;margin-top:7px}
+  @media(max-width:480px){.statgrid{grid-template-columns:repeat(2,1fr)}}
+
+  /* oils */
+  .oil{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .oil:last-of-type{border-bottom:none}
+  .oil .pill{flex:0 0 auto;font-size:8px;font-weight:700;letter-spacing:.5px;padding:4px 8px;border-radius:20px;margin-top:2px;color:#FBF7F0}
+  .oil .on{font-size:13px;font-weight:600;letter-spacing:.1px}
+  .oil .od{font-size:10.5px;color:var(--dim);line-height:1.45;margin-top:3px}
+
+  /* alternatives */
+  a.altlink{text-decoration:none;color:inherit;display:block}
+  .alt{display:flex;gap:11px;align-items:center;padding:10px;border:1px solid var(--line);background:var(--panel2);margin-bottom:8px;transition:.12s;border-radius:10px}
+  .alt:hover{border-color:var(--acid);transform:translateX(2px)}
+  .alt .ap{flex:0 0 46px;width:46px;height:46px;border:1px solid var(--line);background:var(--panel) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--dim);border-radius:8px}
+  .alt .an{flex:1;min-width:0}
+  .alt .at{font-weight:600;font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .alt .ab{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+  .alt .ag{flex:0 0 auto;font-family:'Fraunces',serif;font-weight:900;font-size:19px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#FBF7F0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="logo">FOOD<b>SCAN</b></div>
+      <div class="tag">processed-food diagnostic readout</div>
+    </div>
+    <div class="status">SRC // OPEN FOOD FACTS<br>API v2 · ODbL<span class="dot"></span></div>
+  </header>
+
+  <div class="deck">
+    <div class="row">
+      <input type="text" id="bc" placeholder="ENTER BARCODE (EAN-13 / UPC)" inputmode="numeric" autocomplete="off">
+      <button class="btn-cam" id="camBtn" title="Scan with camera">⊙ SCAN</button>
+      <button class="btn-go" id="goBtn">▸</button>
+    </div>
+    <div class="demos">
+      <span>try:</span>
+      <button class="chip" data-bc="3017624010701">Nutella</button>
+      <button class="chip" data-bc="5449000000996">Coca-Cola</button>
+      <button class="chip" data-bc="7613035833852">KitKat</button>
+      <button class="chip" data-bc="8076809513753">Barilla Pesto</button>
+      <button class="chip" data-bc="3228857000852">Oat biscuits</button>
+    </div>
+    <div class="feed" id="feed">READY. enter a barcode, tap a sample, or scan.</div>
+  </div>
+
+  <div id="camwrap">
+    <button class="camclose" id="camClose">✕ CLOSE</button>
+    <div class="scanline"></div>
+    <div id="reader"></div>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>
+    DATA · OPEN FOOD FACTS, <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">openfoodfacts.org</a> — crowdsourced, licensed ODbL.<br>
+    SCORES (Nutri-Score / NOVA / Green-Score) computed by Open Food Facts. Not medical advice.
+  </footer>
+</div>
+
+<script>
+const FIELDS = [
+  "product_name","brands","quantity","image_front_small_url","image_front_url",
+  "nutriscore_grade","nova_group","ecoscore_grade","ecoscore_score",
+  "nutriments","nutrient_levels","additives_tags","additives_n",
+  "allergens_tags","ingredients_text","ingredients_n","categories",
+  "labels_tags","packaging","completeness","countries",
+  "categories_tags","serving_size","nutriscore_score","ingredients_analysis_tags"
+].join(",");
+
+const $ = id => document.getElementById(id);
+const feed = $('feed');
+function setFeed(msg, cls=''){ feed.className = 'feed '+cls; feed.innerHTML = msg; }
+
+const NOVA_TXT = {
+  1:"Unprocessed / minimally processed",
+  2:"Processed culinary ingredient",
+  3:"Processed food",
+  4:"Ultra-processed food"
+};
+const GRADE_C = {a:'--grade-a',b:'--grade-b',c:'--grade-c',d:'--grade-d',e:'--grade-e'};
+
+function gradeColor(g){ return getComputedStyle(document.documentElement).getPropertyValue(GRADE_C[g]||'--line').trim()||'#262b22'; }
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function clean(t){ return esc((t||'').replace(/^en:/,'').replace(/-/g,' ')); }
+
+// Health score: derived from Nutri-Score (60%) + NOVA (40%), 0-100. Clearly a composite, not gospel.
+function healthScore(p){
+  const nMap={a:95,b:78,c:55,d:32,e:12};
+  const nov={1:95,2:75,3:50,4:18};
+  const ns = nMap[p.nutriscore_grade], nv = nov[p.nova_group];
+  if(ns==null && nv==null) return null;
+  if(ns==null) return Math.round(nv);
+  if(nv==null) return Math.round(ns);
+  return Math.round(ns*0.6 + nv*0.4);
+}
+function scoreColor(s){
+  if(s>=75) return getComputedStyle(document.documentElement).getPropertyValue('--grade-b').trim();
+  if(s>=50) return getComputedStyle(document.documentElement).getPropertyValue('--amber').trim();
+  if(s>=30) return getComputedStyle(document.documentElement).getPropertyValue('--grade-d').trim();
+  return getComputedStyle(document.documentElement).getPropertyValue('--red').trim();
+}
+function rank(g){ return {a:1,b:2,c:3,d:4,e:5}[g] || 9; }
+
+// Oils & fats detector — evidence-honest tiers, not hype.
+const OILS=[
+  {re:/(partially\s+)?hydrogenated|shortening|trans[\s-]?fat/i, label:'TRANS / HYDROGENATED', tier:'bad',
+   note:'The one genuinely well-evidenced harmful fat. Strongly linked to cardiovascular disease. Avoid.'},
+  {re:/palm\s*kernel/i, label:'PALM KERNEL OIL', tier:'warn',
+   note:'Very high saturated fat plus the deforestation footprint of palm.'},
+  {re:/palm\s*(oil|fat|olein|stearin)|huile de palme/i, label:'PALM OIL', tier:'warn',
+   note:'High saturated fat; major environmental / deforestation concern.'},
+  {re:/coconut\s*(oil|fat)/i, label:'COCONUT OIL', tier:'warn',
+   note:'~90% saturated fat — among the highest, despite its health halo.'},
+  {re:/sunflower\s*oil/i, label:'SUNFLOWER OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/(rapeseed|canola)\s*oil/i, label:'RAPESEED / CANOLA', tier:'seed', note:'Refined seed oil.'},
+  {re:/soy(bean|a)?[\s-]*oil/i, label:'SOYBEAN OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/(corn|maize)\s*oil/i, label:'CORN OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/cottonseed\s*oil/i, label:'COTTONSEED OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/safflower\s*oil/i, label:'SAFFLOWER OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/grape\s*seed\s*oil/i, label:'GRAPESEED OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/rice\s*bran\s*oil/i, label:'RICE BRAN OIL', tier:'seed', note:'Refined seed oil.'},
+  {re:/vegetable\s*oil/i, label:'VEGETABLE OIL (unspecified)', tier:'seed', note:'Generic refined oil; exact source undisclosed.'},
+];
+function detectOils(text, analysis){
+  const t=(text||'').toLowerCase();
+  const out=[]; const seen=new Set();
+  OILS.forEach(o=>{ if(o.re.test(t) && !seen.has(o.label)){ seen.add(o.label); out.push(o); } });
+  // OFF's own palm-oil flag as a backstop
+  if((analysis||[]).includes('en:palm-oil') && !seen.has('PALM OIL') && !seen.has('PALM KERNEL OIL')){
+    out.push({label:'PALM OIL', tier:'warn', note:'Flagged by Open Food Facts ingredient analysis.'});
+  }
+  return out;
+}
+const TIER={ bad:{c:'#BC4A35',k:'BAD'}, warn:{c:'#C98A2B',k:'CAUTION'}, seed:{c:'#4E8378',k:'SEED OIL'} };
+function lum(hex){ hex=(hex||'').trim().replace('#',''); if(hex.length<6) return 200; const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16); return 0.299*r+0.587*g+0.114*b; }
+function textOn(bg){ return lum(bg) > 150 ? '#2B201A' : '#FBF7F0'; }
+
+// Healthier alternatives — query the same OFF category, rank by Nutri-Score.
+async function loadAlternatives(p, code){
+  const card=document.createElement('div');
+  card.className='card reveal'; card.style.animationDelay='.42s';
+  card.innerHTML=`<div class="card-h"><span>healthier alternatives</span><span>scanning…</span></div>
+    <div class="card-b"><div class="none"><span class="loader"></span>searching same category on Open Food Facts…</div></div>`;
+  $('out').appendChild(card);
+
+  const cats=(p.categories_tags||[]).slice().reverse(); // specific → broad
+  let pool=[];
+  try{
+    for(const tag of cats.slice(0,2)){
+      const u=`https://world.openfoodfacts.org/api/v2/search?categories_tags=${encodeURIComponent(tag)}`
+        +`&fields=code,product_name,brands,nutriscore_grade,nova_group,image_front_small_url&page_size=40`;
+      const r=await fetch(u); const j=await r.json();
+      const better=(j.products||[]).filter(x=>x.code!==code && x.product_name && x.nutriscore_grade
+        && rank(x.nutriscore_grade) < rank(p.nutriscore_grade||'e'));
+      if(better.length>pool.length) pool=better;
+      if(pool.length>=4) break;
+    }
+  }catch(e){}
+
+  const seen=new Set();
+  const alts=pool.filter(x=>{const k=x.product_name.toLowerCase().trim(); if(seen.has(k))return false; seen.add(k); return true;})
+    .sort((a,b)=> rank(a.nutriscore_grade)-rank(b.nutriscore_grade) || (a.nova_group||9)-(b.nova_group||9))
+    .slice(0,4);
+
+  if(!alts.length){
+    card.innerHTML=`<div class="card-h"><span>healthier alternatives</span><span>0 found</span></div>
+      <div class="card-b"><div class="none">${cats.length?'No better Nutri-Score products found in this category.':'No category data on this product — can\'t suggest alternatives.'}</div></div>`;
+    return;
+  }
+  card.innerHTML=`<div class="card-h"><span>healthier alternatives · same category</span><span>${alts.length} found</span></div>
+    <div class="card-b">${alts.map(x=>{
+      const g=x.nutriscore_grade, col=gradeColor(g), img=x.image_front_small_url||'';
+      return `<a class="altlink" href="https://world.openfoodfacts.org/product/${x.code}" target="_blank" rel="noopener"><div class="alt">
+        <div class="ap" ${img?`style="background-image:url('${esc(img)}')"`:''}>${img?'':'—'}</div>
+        <div class="an"><div class="at">${esc(x.product_name)}</div>
+          <div class="ab">${x.brands?esc(x.brands.split(',')[0]):'—'} · NOVA ${x.nova_group||'?'}</div></div>
+        <div class="ag" style="background:${col};color:${textOn(col)}">${g.toUpperCase()}</div>
+      </div></a>`;
+    }).join('')}<div class="disc">Ranked by Nutri-Score within the same category${p.nutriscore_grade?` (better than this product's ${p.nutriscore_grade.toUpperCase()})`:''}. Tap to open on Open Food Facts. ${p.nutriscore_grade?'':'<b>This product has no Nutri-Score</b>, so suggestions are simply graded A–B.'}</div></div>`;
+}
+
+async function lookup(code){
+  code = (code||'').trim();
+  if(!/^\d{6,14}$/.test(code)){ setFeed('INVALID BARCODE — digits only (6–14).','err'); return; }
+  $('bc').value = code;
+  setFeed('<span class="loader"></span>QUERYING world.openfoodfacts.org …');
+  $('out').style.display='none';
+  try{
+    const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${FIELDS}`;
+    const r = await fetch(url, {headers:{'Accept':'application/json'}});
+    const j = await r.json();
+    if(j.status !== 1 || !j.product){ setFeed('NO RECORD FOUND for '+code+'. (Not all products are in the database.)','err'); return; }
+    setFeed('RECORD FOUND · '+code,'ok');
+    render(j.product, code);
+  }catch(e){
+    setFeed('NETWORK ERROR — fetch blocked. Open this file in a browser tab (it won\'t fetch inside a sandboxed preview).','err');
+  }
+}
+
+function render(p, code){
+  const out = $('out'); out.innerHTML=''; out.style.display='block';
+  const N = p.nutriments||{};
+  const lv = p.nutrient_levels||{};
+  const score = healthScore(p);
+  const img = p.image_front_small_url || p.image_front_url || '';
+
+  // ---- identity
+  let html = `<div class="card reveal" style="animation-delay:0s">
+    <div class="card-b ident">
+      <div class="pic" ${img?`style="background-image:url('${esc(img)}')"`:''}>${img?'':'NO IMG'}</div>
+      <div style="flex:1;min-width:0">
+        <div class="pname">${esc(p.product_name)||'UNNAMED PRODUCT'}</div>
+        ${p.brands?`<div class="pbrand">${esc(p.brands)}</div>`:''}
+        <div class="pmeta">${p.quantity?esc(p.quantity)+' · ':''}EAN ${esc(code)}${p.categories?' · '+clean(p.categories.split(',')[0]):''}</div>
+      </div>
+    </div></div>`;
+
+  // ---- grade strip
+  const ns=p.nutriscore_grade, nv=p.nova_group, es=p.ecoscore_grade;
+  html += `<div class="grades reveal" style="animation-delay:.06s">
+    <div class="gbox">
+      <div class="lbl">Nutri-Score</div>
+      ${ns?`<div class="gbadge" style="background:${gradeColor(ns)};color:${textOn(gradeColor(ns))}">${ns.toUpperCase()}</div>`:`<div class="gbadge" style="background:var(--line);color:var(--dim)">?</div>`}
+      <div class="gsub">${ns?'nutritional quality A→E':'not computed'}</div>
+    </div>
+    <div class="gbox">
+      <div class="lbl">NOVA group</div>
+      <div class="nova">${[1,2,3,4].map(i=>`<i class="${nv&&i<=nv?'on':''} ${nv===4?'hi':''}"></i>`).join('')}</div>
+      <div class="gsub">${nv?clean(NOVA_TXT[nv]):'processing not computed'}</div>
+    </div>
+    <div class="gbox">
+      <div class="lbl">Green-Score</div>
+      ${es?`<div class="gbadge" style="background:${gradeColor(es)};color:${textOn(gradeColor(es))}">${es.toUpperCase()}</div>`:`<div class="gbadge" style="background:var(--line);color:var(--dim)">?</div>`}
+      <div class="gsub">${es?'environmental impact':'not computed'}</div>
+    </div>
+  </div>`;
+
+  // ---- health ring (composite)
+  if(score!==null){
+    const C=2*Math.PI*52, off=C*(1-score/100), col=scoreColor(score);
+    html += `<div class="card reveal" style="animation-delay:.12s">
+      <div class="card-h"><span>composite health index</span><span>derived</span></div>
+      <div class="card-b ringwrap">
+        <div class="ring">
+          <svg width="120" height="120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="8"/>
+            <circle id="ringfg" cx="60" cy="60" r="52" fill="none" stroke="${col}" stroke-width="8"
+              stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"
+              style="transition:stroke-dashoffset 1.1s cubic-bezier(.2,.7,.2,1);filter:drop-shadow(0 0 6px ${col})"/>
+          </svg>
+          <div class="val"><div class="num" style="color:${col}">${score}</div><div class="den">/ 100</div></div>
+        </div>
+        <div class="ringtxt">A blended index: <b>Nutri-Score 60% + NOVA 40%</b>. Higher = better. This is a convenience composite, <b>not</b> an official metric — trust the individual grades above over this single number.</div>
+      </div></div>`;
+    setTimeout(()=>{ const f=$('ringfg'); if(f) f.style.strokeDashoffset=off; },80);
+  }
+
+  // ---- nutriments per 100g
+  const rows=[
+    ['Energy', N['energy-kcal_100g'], 'kcal', 530, null],
+    ['Fat', N.fat_100g, 'g', 50, lv.fat],
+    ['  saturated', N['saturated-fat_100g'], 'g', 20, lv['saturated-fat']],
+    ['Sugars', N.sugars_100g, 'g', 50, lv.sugars],
+    ['Salt', N.salt_100g, 'g', 3, lv.salt],
+    ['Protein', N.proteins_100g, 'g', 30, null],
+    ['Fibre', N.fiber_100g, 'g', 12, null],
+  ].filter(r=>r[1]!=null && r[1]!=='');
+  if(rows.length){
+    html += `<div class="card reveal" style="animation-delay:.18s">
+      <div class="card-h"><span>nutriments · per 100${(N['energy-kcal_100g']!=null||true)?'g/ml':''}</span><span>${rows.length} fields</span></div>
+      <div class="card-b nut">${rows.map((r,i)=>{
+        const pct=Math.min(100,(r[1]/r[3])*100);
+        const lvl=r[4]?`lvl-${r[4]}`:'';
+        return `<div class="nrow ${lvl}" ${r[4]?`data-lvl="${r[4]}"`:''}>
+          <span class="nm">${esc(r[0])}</span>
+          <span class="bar"><i style="width:0" data-w="${pct}"></i></span>
+          <span class="nval">${(+r[1]).toFixed(r[2]==='kcal'?0:1)} ${r[2]}</span>
+        </div>`;
+      }).join('')}</div></div>`;
+  }
+
+  // ---- derived metrics
+  const kj = N['energy-kj_100g'] ?? (N['energy-kcal_100g']!=null ? Math.round(N['energy-kcal_100g']*4.184) : null);
+  const sodiumMg = N.sodium_100g!=null ? Math.round(N.sodium_100g*1000) : (N.salt_100g!=null ? Math.round(N.salt_100g/2.5*1000) : null);
+  const sugarTsp = N.sugars_100g!=null ? +(N.sugars_100g/4).toFixed(1) : null;
+  const fvn = N['fruits-vegetables-nuts-estimate-from-ingredients_100g'] ?? N['fruits-vegetables-nuts_100g'] ?? null;
+  const satPct = (N.fat_100g>0 && N['saturated-fat_100g']!=null) ? Math.round(N['saturated-fat_100g']/N.fat_100g*100) : null;
+  const tiles=[
+    ['Energy', kj, 'kJ'],
+    ['Carbs', N.carbohydrates_100g!=null?+(+N.carbohydrates_100g).toFixed(1):null, 'g'],
+    ['Sodium', sodiumMg, 'mg'],
+    ['Sugar ≈', sugarTsp, 'tsp'],
+    ['Fruit/Veg/Nut', fvn!=null?Math.round(fvn):null, '%'],
+    ['Sat % of fat', satPct, '%'],
+    ['Nutri pts', p.nutriscore_score, 'pts'],
+    ['Additives', p.additives_n, 'n'],
+  ].filter(t=>t[1]!=null && t[1]!=='');
+  if(tiles.length){
+    html += `<div class="card reveal" style="animation-delay:.15s">
+      <div class="card-h"><span>derived metrics · per 100g</span><span>${tiles.length} stats</span></div>
+      <div class="statgrid">${tiles.map(t=>`<div class="stat"><div class="sv">${t[1]}<span class="su"> ${t[2]}</span></div><div class="sl">${esc(t[0])}</div></div>`).join('')}</div>
+      ${p.serving_size?`<div class="card-b" style="border-top:1px solid var(--line)"><div class="pmeta">SERVING SIZE · ${esc(p.serving_size)}${sugarTsp!=null?` &nbsp;|&nbsp; sugar ≈ ${sugarTsp} tsp per 100g`:''}</div></div>`:''}
+    </div>`;
+  }
+
+  // ---- oils & fats
+  const oils=detectOils(p.ingredients_text, p.ingredients_analysis_tags);
+  const hasSeed=oils.some(o=>o.tier==='seed');
+  html += `<div class="card reveal" style="animation-delay:.21s">
+    <div class="card-h"><span>oils &amp; fats detected</span><span>${oils.length} flagged</span></div>
+    <div class="card-b">
+    ${oils.length ? oils.map(o=>{
+      const ti=TIER[o.tier];
+      return `<div class="oil">
+        <span class="pill" style="background:${ti.c};color:${textOn(ti.c)}">${ti.k}</span>
+        <div><div class="on" style="color:${ti.c}">${o.label}</div><div class="od">${o.note}</div></div>
+      </div>`;
+    }).join('') : `<div class="none">— no flagged oils detected in the ingredient list —</div>`}
+    ${hasSeed?`<div class="disc"><b>On seed oils:</b> flagged here because you asked, but the popular claim that refined seed oils are uniquely toxic is <b>weakly supported</b>. The defensible concerns are that they signal industrial processing and push omega-6 high in an already-imbalanced diet — not acute harm. <b>Trans/hydrogenated fats are the genuinely dangerous category.</b></div>`:''}
+    ${oils.length && !p.ingredients_text?`<div class="disc">Note: ingredient text is missing, so detection may be incomplete.</div>`:''}
+    </div></div>`;
+
+  // ---- additives & allergens
+  const adds=(p.additives_tags||[]);
+  const alls=(p.allergens_tags||[]);
+  html += `<div class="card reveal" style="animation-delay:.24s">
+    <div class="card-h"><span>additives · allergens</span><span>${adds.length} add · ${alls.length} alrg</span></div>
+    <div class="card-b">
+      <div style="font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:6px">ADDITIVES</div>
+      ${adds.length?`<div class="tags" style="margin-bottom:12px">${adds.slice(0,24).map(a=>`<span class="t ${adds.length>6?'warn':''}">${clean(a).toUpperCase()}</span>`).join('')}</div>`:`<div class="none none-pad">— none recorded —</div>`}
+      <div style="font-size:9px;color:var(--dim);letter-spacing:1px;margin:12px 0 6px">ALLERGENS</div>
+      ${alls.length?`<div class="tags">${alls.map(a=>`<span class="t bad">${clean(a).toUpperCase()}</span>`).join('')}</div>`:`<div class="none">— none recorded —</div>`}
+    </div></div>`;
+
+  // ---- ingredients
+  if(p.ingredients_text){
+    html += `<div class="card reveal" style="animation-delay:.3s">
+      <div class="card-h"><span>ingredients</span><span>${p.ingredients_n||'?'} items</span></div>
+      <div class="card-b"><div class="ingtext">${esc(p.ingredients_text)}</div></div></div>`;
+  }
+
+  // ---- completeness / honesty meter
+  const comp = Math.round((p.completeness||0)*100);
+  html += `<div class="card reveal" style="animation-delay:.36s">
+    <div class="card-h"><span>record completeness</span><span>${comp}%</span></div>
+    <div class="card-b">
+      <div class="compbar"><i data-w="${comp}"></i></div>
+      <div class="disc">This record is community-contributed. ${comp<60?'<b>Completeness is low</b> — missing fields can produce a misleadingly high or skewed score. Treat results with caution.':'Reasonably complete, but still verify against the physical label for anything that matters.'}</div>
+    </div></div>`;
+
+  out.innerHTML = html;
+  setTimeout(()=>document.querySelectorAll('.bar i[data-w],.compbar i[data-w]').forEach(b=>b.style.width=b.dataset.w+'%'),120);
+  loadAlternatives(p, code);
+}
+
+// ---- events
+$('goBtn').onclick = ()=>lookup($('bc').value);
+$('bc').addEventListener('keydown',e=>{ if(e.key==='Enter') lookup($('bc').value); });
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>lookup(c.dataset.bc));
+
+// ---- camera scanning
+let scanner=null;
+async function startCam(){
+  const wrap=$('camwrap'); wrap.style.display='block';
+  setFeed('<span class="loader"></span>REQUESTING CAMERA …');
+  try{
+    scanner = new Html5Qrcode("reader", { formatsToSupport:[
+      Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128
+    ]});
+    await scanner.start({facingMode:"environment"},
+      {fps:10, qrbox:{width:260,height:160}},
+      txt=>{ stopCam(); lookup(txt); },
+      ()=>{} );
+    setFeed('CAMERA LIVE — point at a barcode.','ok');
+  }catch(e){
+    wrap.style.display='none';
+    setFeed('CAMERA UNAVAILABLE here. This needs the page opened in a browser tab with camera permission (won\'t work in a sandboxed preview). Use manual entry or a sample.','err');
+  }
+}
+async function stopCam(){
+  $('camwrap').style.display='none';
+  if(scanner){ try{ await scanner.stop(); scanner.clear(); }catch(e){} scanner=null; }
+}
+$('camBtn').onclick = ()=> scanner ? stopCam() : startCam();
+$('camClose').onclick = stopCam;
+</script>
+</body>
+</html>
