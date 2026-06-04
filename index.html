@@ -24,6 +24,7 @@
     --shadow:0 1px 2px rgba(58,46,38,.05),0 6px 20px rgba(58,46,38,.06);
   }
   *{margin:0;padding:0;box-sizing:border-box}
+  html{overflow-x:hidden}
   html,body{background:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   body{
     min-height:100vh;
@@ -54,8 +55,8 @@
   .deck{border:1px solid var(--line);border-top:none;background:var(--panel);padding:16px 18px;border-radius:0 0 14px 14px;box-shadow:var(--shadow)}
   .row{display:flex;gap:8px}
   input[type=text]{
-    flex:1;background:var(--bg);border:1px solid var(--line);color:var(--ink);
-    font-family:inherit;font-size:15px;padding:12px 14px;letter-spacing:.3px;outline:none;border-radius:9px;
+    flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+    font-family:inherit;font-size:16px;padding:12px 14px;letter-spacing:.3px;outline:none;border-radius:9px;
   }
   input[type=text]:focus{border-color:var(--acid);box-shadow:0 0 0 2px rgba(194,97,63,.2)}
   input::placeholder{color:var(--dim)}
@@ -174,6 +175,34 @@
   .alt .at{font-weight:600;font-size:13px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .alt .ab{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
   .alt .ag{flex:0 0 auto;font-family:'Fraunces',serif;font-weight:900;font-size:19px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#FBF7F0}
+
+  /* ---- mobile ---- */
+  @media(max-width:560px){
+    body{padding:14px 10px 48px}
+    header{padding:14px 14px;border-radius:12px 12px 0 0}
+    .deck{padding:14px 14px}
+    .logo{font-size:23px}
+    .status{font-size:9px;letter-spacing:.5px}
+    .card-b{padding:14px}
+    /* grade strip: don't let the three badges get crushed */
+    .grades{gap:8px}
+    .gbox{padding:10px 6px}
+    .gbadge{font-size:27px;min-width:0;padding:6px 2px}
+    .gsub{font-size:8px}
+    /* nutriment rows: tighten the fixed label/value columns so the bar keeps room */
+    .nrow{grid-template-columns:68px 1fr 54px;gap:8px}
+    /* health ring stacks above its caption */
+    .ringwrap{flex-direction:column;align-items:flex-start;gap:14px}
+    .ringtxt{flex:none}
+  }
+  @media(max-width:380px){
+    .row{flex-wrap:wrap}
+    .btn-cam{flex:1 1 auto}
+    .btn-go{flex:0 0 56px}
+    input[type=text]{flex:1 1 100%}
+    .grades{grid-template-columns:1fr 1fr}
+    .grades .gbox:nth-child(3){grid-column:1 / -1}
+  }
 </style>
 </head>
 <body>
